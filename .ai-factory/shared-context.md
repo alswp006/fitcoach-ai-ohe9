@@ -188,3 +188,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: 전체 엔티티 타입 + RouteState 정의 (files: src/lib/types.ts)
 - 0005: API 클라이언트 + kcal 유틸 + 프로모션 헬퍼 (files: src/lib/api.ts, src/lib/kcal.ts, src/lib/promotion.ts)
+- 0002: 기본 storage 헬퍼 (profile/plan/flags/challenges) (files: src/lib/storage.ts)
