@@ -280,8 +280,7 @@ describe("Packet 0005 — API client + kcal utility + promotion helper (TDD red 
       await grantPromotion("PROMO_CODE_123", amount);
 
       expect(grantPromotionReward).toHaveBeenCalledWith({
-        promotionCode: "PROMO_CODE_123",
-        amount: 3000,
+        params: { promotionCode: "PROMO_CODE_123", amount: 3000 },
       });
     });
 
@@ -293,8 +292,7 @@ describe("Packet 0005 — API client + kcal utility + promotion helper (TDD red 
       await grantPromotion("PROMO_CODE_456", amount);
 
       expect(grantPromotionReward).toHaveBeenCalledWith({
-        promotionCode: "PROMO_CODE_456",
-        amount: 5000,
+        params: { promotionCode: "PROMO_CODE_456", amount: 5000 },
       });
     });
 
@@ -306,8 +304,7 @@ describe("Packet 0005 — API client + kcal utility + promotion helper (TDD red 
       await grantPromotion("PROMO_CODE_789", amount);
 
       expect(grantPromotionReward).toHaveBeenCalledWith({
-        promotionCode: "PROMO_CODE_789",
-        amount: 5000,
+        params: { promotionCode: "PROMO_CODE_789", amount: 5000 },
       });
     });
 
@@ -319,8 +316,7 @@ describe("Packet 0005 — API client + kcal utility + promotion helper (TDD red 
       await grantPromotion("PROMO_UNLIMITED", amount);
 
       expect(grantPromotionReward).toHaveBeenCalledWith({
-        promotionCode: "PROMO_UNLIMITED",
-        amount: 5000,
+        params: { promotionCode: "PROMO_UNLIMITED", amount: 5000 },
       });
     });
   });
