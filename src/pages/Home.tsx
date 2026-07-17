@@ -1,65 +1,128 @@
-import { Top, Paragraph, Spacing, ListRow, Button } from '@toss/tds-mobile';
-import { useNavigate } from 'react-router-dom';
-import { ScreenScaffold } from '../components/ScreenScaffold';
-import { SummaryHero } from '../components/SummaryHero';
-import { Card } from '../components/Card';
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Top, Paragraph, Spacing, ListRow, Button, Asset } from '@toss/tds-mobile';
+import { ScreenScaffold } from '@/components/ScreenScaffold';
+import { SummaryHero } from '@/components/SummaryHero';
+import { Card } from '@/components/Card';
+import { CountUp } from '@/components/CountUp';
+import { Amount } from '@/components/Amount';
+import { Sparkline } from '@/components/Sparkline';
+import { EmptyState } from '@/components/StateView';
+import { AdSlot } from '@/components/AdSlot';
+import { FloatingTabBar } from '@/components/FloatingTabBar';
+import { useApp } from '@/lib/appContext';
+import { getSessions } from '@/lib/sessionStore';
 
-/**
- * Golden Home page — 대시보드/탭-루트 골든 레퍼런스.
- *
- * 다른 페이지를 쓸 때 이 패턴을 모방하라:
- * - ScreenScaffold로 감싼다(raw fragment 골격 금지) — safe-area + 100dvh 자동 처리.
- * - 화면 최상단에 SummaryHero로 시각 앵커를 만든다('휑함'의 가장 큰 원인은 앵커 부재).
- *   데이터가 있으면 value에 <Amount value={n} unit="원" typography="t1" />로 핵심 숫자를 크게 박아라.
- * - 1차 진입 액션은 SummaryHero 카드 내부 버튼(display="block", 전체폭)에 둔다.
- *   → 화면 중앙 부유/좌측 글자폭 버튼 금지. 하단 TabBar가 있으면 SubmitFooter와 겹치므로 카드 안에.
- * - 핵심 정보는 raw <div>가 아니라 Card로 묶어 위계를 만든다.
- * - 하단 탭이 필요하면(2~5탭): bottom={<FloatingTabBar items={[{label,path}...]} />}.
- *   ('TDS TabBar'는 존재하지 않는다 — 직접 만들지 말고 FloatingTabBar를 써라.)
- *
- * Scaffold tokens (replaced by scaffold-toss.ts at project creation):
- *   FitCoach AI -> the app's display name
- *   헬스장 PT는 비싸고(월 50만원+) 유튜브 운동 영상은 내 몸에 안 맞는 문제를 해결하는 AI 실시간 자세 교정 홈트레이닝 앱    -> the one-line description
- */
+const AD_GROUP_ID = import.meta.env.VITE_TOSS_AD_GROUP_ID ?? 'home-banner';
+const PAGE_SIZE = 20;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const HIGHLIGHTS = [
-  { title: '간편한 사용', description: '몇 번의 터치로 결과를 확인하세요' },
-  { title: '빠른 처리', description: '복잡한 입력 없이 바로 시작합니다' },
-  { title: '안전한 보관', description: '데이터는 이 기기에만 저장됩니다' },
+const TAB_ITEMS = [
+  { label: '홈', path: '/' },
+  { label: '플랜', path: '/plan' },
+  { label: '챌린지', path: '/challenge' },
+  { label: '구독', path: '/subscribe' },
 ];
+
+function last7DayCounts(sessions: { startedAt: number }[]): number[] {
+  const now = Date.now();
+  const counts = Array.from({ length: 7 }, () => 0);
+  for (const session of sessions) {
+    const daysAgo = Math.floor((now - session.startedAt) / DAY_MS);
+    if (daysAgo >= 0 && daysAgo < 7) {
+      counts[6 - daysAgo] += 1;
+    }
+  }
+  return counts;
+}
 
 export default function Home() {
   const navigate = useNavigate();
+  const { flags } = useApp();
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  if (!flags.onboarded) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  const sessions = getSessions();
+  const now = Date.now();
+  const weeklyCount = sessions.filter((s) => now - s.startedAt < 7 * DAY_MS).length;
+  const totalKcal = sessions.reduce((sum, s) => sum + s.kcal, 0);
+  const visibleSessions = sessions.slice(0, visibleCount);
 
   return (
     <ScreenScaffold
       top={<Top title={<Top.TitleParagraph>FitCoach AI</Top.TitleParagraph>} />}
+      bottom={<FloatingTabBar items={TAB_ITEMS} />}
     >
-      {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
-          데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
       <SummaryHero
-        label="FitCoach AI"
-        value={<Paragraph.Text typography="t2">헬스장 PT는 비싸고(월 50만원+) 유튜브 운동 영상은 내 몸에 안 맞는 문제를 해결하는 AI 실시간 자세 교정 홈트레이닝 앱</Paragraph.Text>}
-        caption="지금 바로 시작해 보세요"
+        label="이번 주 운동"
+        value={<CountUp value={weeklyCount} unit="회" typography="t1" testId="weekly-summary-count" />}
+        caption={<Amount value={totalKcal} unit="kcal 누적" typography="t6" />}
         action={
-          <Button variant="fill" display="block" onClick={() => navigate('/')}>
-            시작하기
+          <Button variant="fill" display="block" onClick={() => navigate('/workout/ex_squat')}>
+            운동 시작
           </Button>
         }
-        testId="home-hero"
+        testId="weekly-summary-hero"
       />
 
-      <Spacing size={24} />
+      <Spacing size={20} />
 
-      {/* 핵심 정보는 Card로 묶기(raw div 금지) — 위계 생성 */}
-      <Card testId="home-highlights">
-        {HIGHLIGHTS.map((h, idx) => (
-          <ListRow
-            key={idx}
-            contents={<ListRow.Texts type="2RowTypeA" top={h.title} bottom={h.description} />}
-          />
-        ))}
+      <Card testId="weekly-trend">
+        <Paragraph.Text typography="t6">최근 7일 추이</Paragraph.Text>
+        <Spacing size={8} />
+        <Sparkline data={last7DayCounts(sessions)} testId="weekly-trend-sparkline" />
       </Card>
+
+      <Spacing size={20} />
+      <AdSlot adGroupId={AD_GROUP_ID} />
+      <Spacing size={20} />
+
+      {sessions.length === 0 ? (
+        <EmptyState
+          icon={<Asset.ContentIcon name="icon-star-mono" alt="세션 없음" />}
+          title="첫 운동을 시작해보세요"
+          description="오늘의 운동을 기록하고 리포트를 받아보세요"
+          action={
+            <Button variant="weak" onClick={() => navigate('/workout/ex_squat')}>
+              운동 시작
+            </Button>
+          }
+          testId="home-empty"
+        />
+      ) : (
+        <>
+          <Card testId="recent-sessions-card">
+            {visibleSessions.map((session, idx) => {
+              const texts = (
+                <ListRow.Texts
+                  type="2RowTypeA"
+                  top={session.exerciseName}
+                  bottom={`${session.completedReps}회・${session.kcal}kcal`}
+                />
+              );
+              return (
+                <div key={session.sessionId}>
+                  {idx > 0 && <Spacing size={4} />}
+                  <ListRow contents={texts} onClick={() => navigate(`/report/${session.sessionId}`)}>
+                    {texts}
+                  </ListRow>
+                </div>
+              );
+            })}
+          </Card>
+          {sessions.length > visibleCount && (
+            <>
+              <Spacing size={12} />
+              <Button variant="weak" display="block" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                더 보기
+              </Button>
+            </>
+          )}
+        </>
+      )}
 
       <Spacing size={24} />
     </ScreenScaffold>

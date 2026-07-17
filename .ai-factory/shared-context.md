@@ -157,6 +157,9 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
     Home.tsx
     Onboarding.tsx
     Plan.tsx
+    Report.tsx
+    Subscribe.tsx
+    Workout.tsx
     __TdsGallery.tsx
   state/
   storage/
@@ -170,7 +173,7 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
 - api.ts: export async function postPlan(req: PlanApiRequest): Promise<PlanApiResponse>; export async function postReport(req: ReportApiRequest): Promise<ReportApiResponse>
 - kcal.ts: export function calcKcal(exerciseId: string, durationSec: number, weightKg: number): number
 - promotion.ts: export async function grantPromotion(code: string, amount: number): Promise<void>
-- sessionStore.ts: export function getSessions(): WorkoutSession[]; export function getSessionById(sessionId: string): WorkoutSession | null; export function saveSession(session: WorkoutSession): boolean
+- sessionStore.ts: export function getSessions(): WorkoutSession[]; export function getSessionById(sessionId: string): WorkoutSession | null; export function updateSession( sessionId: string, patch: Partial<WorkoutSession>, ): WorkoutSession | null; export function saveSession(session: WorkoutSession): boolean
 - storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void; export function safeParse<T>(raw: string, fallback: T): T; export function safeParse<T>(raw: string, fallback: null): T | null; export function safeParse<T>(raw: string, fallback: T | null): T | null; export function getProfile(): UserProfile | null; export function saveProfile(profile: UserProfile): void
 - types.ts: export interface UserProfile; export interface PlanExercise; export interface WorkoutPlan; export interface FormFeedback; export interface WorkoutSession; export interface Challenge; export interface AppFlags; export interface PlanApiRequest
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
@@ -199,7 +202,11 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
   lib/sessionStore.ts → imports: lib/types, lib/storage
   lib/storage.ts → imports: lib/types
   pages/Challenge.tsx → imports: components/ScreenScaffold, components/Card, components/StateView, lib/storage, lib/types
+  pages/Home.tsx → imports: components/ScreenScaffold, components/SummaryHero, components/Card, components/CountUp, components/Amount, components/Sparkline, components/StateView, components/AdSlot, components/FloatingTabBar, lib/appContext, lib/sessionStore
   pages/Plan.tsx → imports: components/ScreenScaffold, components/BottomCTA, components/Card, components/SummaryHero, components/Amount, components/StateView, components/TossRewardAd, components/AiBadge, lib/appContext, lib/storage, lib/api, lib/types
+  pages/Report.tsx → imports: components/ScreenScaffold, components/Card, components/SummaryHero, components/CountUp, components/MiniBar, components/StateView, components/TossRewardAd, components/AdSlot, components/AiBadge, lib/sessionStore, lib/api, lib/appContext, lib/types
+  pages/Subscribe.tsx → imports: components/ScreenScaffold, components/Card, components/Amount, components/TossPurchase, lib/appContext
+  pages/Workout.tsx → imports: components/ScreenScaffold, components/BottomCTA, components/StateView, lib/appContext, lib/sessionStore, lib/kcal, lib/promotion, lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
@@ -209,5 +216,6 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0004: 앱 상태 관리 (AppContext) (files: src/lib/appContext.tsx)
 - 0005: API 클라이언트 + kcal 유틸 + 프로모션 헬퍼 (files: src/lib/api.ts, src/lib/kcal.ts, src/lib/promotion.ts)
 - 0006: 온보딩 페이지 /onboarding (files: src/pages/Onboarding.tsx)
+- heal-1-01: 공용 AI 고지·AI 배지·프리미엄 게이트 컴포넌트 추출 (files: src/components/AiNoticeGate.tsx, src/components/AiBadge.tsx, src/components/PremiumGate.tsx, src/state/AppContext.tsx, src/storage/flags.ts)
 - heal-1-02: 패킷 0008 /plan 페이지를 공용 계약에 맞춰 수복 (files: src/pages/plan/PlanPage.tsx, src/api/client.ts, src/storage/plan.ts, src/components/AiBadge.tsx)
 - heal-1-03: 패킷 0011 /challenge 페이지를 공용 계약에 맞춰 수복 (files: src/pages/challenge/ChallengePage.tsx, src/storage/challenges.ts, src/state/AppContext.tsx)

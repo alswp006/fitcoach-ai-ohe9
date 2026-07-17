@@ -44,6 +44,21 @@ function incrementActiveChallenges(now: number): void {
   saveChallenges(updated);
 }
 
+export function updateSession(
+  sessionId: string,
+  patch: Partial<WorkoutSession>,
+): WorkoutSession | null {
+  const sessions = getSessions();
+  const idx = sessions.findIndex((s) => s.sessionId === sessionId);
+  if (idx === -1) return null;
+
+  const updated = { ...sessions[idx], ...patch };
+  const next = [...sessions];
+  next[idx] = updated;
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(next));
+  return updated;
+}
+
 export function saveSession(session: WorkoutSession): boolean {
   const existing = getSessions();
 
