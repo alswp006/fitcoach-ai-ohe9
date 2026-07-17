@@ -1,0 +1,562 @@
+[
+  {
+    "id": "0001",
+    "title": "전체 엔티티 타입 + RouteState 정의",
+    "epic": "Epic 1. 타입",
+    "task": {
+      "description": "SPEC의 5개 모델(UserProfile, WorkoutPlan/PlanExercise, WorkoutSession/FormFeedback, Challenge, AppFlags)과 API req/res 타입, 페이지 간 이동 계약 RouteState를 순수 타입으로 정의한다. 런타임 코드 없이 인터페이스/유니온만 export하며 tsc --noEmit을 통과해야 한다. 다른 모든 패킷의 기반이 된다.",
+      "acceptance_criteria": [
+        "5개 인터페이스가 SPEC 필드/유니온과 100% 일치",
+        "PlanApiRequest/Response, ReportApiRequest/Response, ApiError={error:string} export",
+        "RouteState 타입 export (/workout/:exerciseId, /report/:sessionId)",
+        "tsc --noEmit 통과, 미참조여도 컴파일"
+      ]
+    },
+    "covers": [
+      "기반 타입"
+    ],
+    "files": [
+      "src/lib/types.ts"
+    ],
+    "definition_of_done": [
+      "5개 인터페이스 SPEC 일치",
+      "API req/res 및 ApiError export",
+      "RouteState export",
+      "tsc --noEmit 통과"
+    ],
+    "depends_on": [],
+    "db_schema": "interface UserProfile{tossUserKey;nickname;heightCm;weightKg;ageGroup:'20s'|'30s'|'40s';goal:'diet'|'muscle'|'health';level:'beginner'|'intermediate';createdAt;updatedAt} / WorkoutPlan / WorkoutSession / Challenge / AppFlags → keys: fitcoach.profile|plan|sessions|challenges|flags",
+    "api_contract": "POST /api/plan {goal,level,ageGroup}→{plan:WorkoutPlan} | POST /api/report {...}→{report} | ApiError={error:string}",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0002",
+    "title": "기본 storage 헬퍼 (profile/plan/flags/challenges)",
+    "epic": "Epic 2. 데이터레이어",
+    "task": {
+      "description": "fitcoach.profile|plan|flags|challenges 4개 키에 대한 get/set 헬퍼와 손상값 방어 파서를 구현한다. 공용 safeParse<T>(raw,fallback)는 JSON.parse 실패 시 try/catch로 fallback을 반환하고 console.error를 호출하지 않는다. 키 부재 시 기본값(profile/plan→null, flags→기본플래그, challenges→[])을 반환한다. 세션은 별도 패킷에서 처리.",
+      "acceptance_criteria": [
+        "getProfile/saveProfile, getPlan/savePlan, getFlags/saveFlags, getChallenges/saveChallenges 구현",
+        "safeParse<T>가 손상 문자열에 fallback 반환·console.error 미호출",
+        "키 부재 시 getter 기본값 반환",
+        "getPlan()이 '{broken'에 null 반환"
+      ]
+    },
+    "covers": [
+      "F1-AC1",
+      "F1-AC4",
+      "F1-AC6"
+    ],
+    "files": [
+      "src/lib/storage.ts"
+    ],
+    "definition_of_done": [
+      "4개 키 CRUD 헬퍼 구현",
+      "safeParse 방어 파서 동작",
+      "기본값 반환 확인",
+      "console.error 0개"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "fitcoach.profile→UserProfile|null, fitcoach.plan→WorkoutPlan|null, fitcoach.flags→AppFlags(기본{aiNoticeConfirmed:false,onboarded:false,isPremium:false}), fitcoach.challenges→Challenge[]",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0003",
+    "title": "세션 storage (FIFO 100 + quota 재시도 + 챌린지 자동증가)",
+    "epic": "Epic 2. 데이터레이어",
+    "task": {
+      "description": "fitcoach.sessions 배열의 저장/조회를 구현한다. 신규 세션은 배열 맨 앞에 추가하고 100개 상한 FIFO를 유지한다. setItem이 QuotaExceededError를 던지면 오래된 10개 제거 후 재시도하며 재시도도 실패하면 false 반환. saveSession 성공 시 기간 내 챌린지들의 myProgress를 targetSessions까지 +1 한다.",
+      "acceptance_criteria": [
+        "getSessions, getSessionById, saveSession(s):boolean 구현",
+        "5개 있을 때 저장 시 길이 6·맨앞 신규",
+        "100개 상한 시 가장 오래된 1개 제거 FIFO",
+        "QuotaExceededError 시 10개 제거 재시도, 실패 시 false",
+        "성공 시 진행중 챌린지 myProgress +1 저장"
+      ]
+    },
+    "covers": [
+      "F1-AC2",
+      "F1-AC3",
+      "F1-AC5",
+      "F7-AC2"
+    ],
+    "files": [
+      "src/lib/sessionStore.ts"
+    ],
+    "definition_of_done": [
+      "FIFO 100 상한 동작",
+      "quota 재시도 로직",
+      "챌린지 자동증가",
+      "boolean 반환"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "fitcoach.sessions→WorkoutSession[] (최근 100 FIFO). startAt<=now<=endAt 챌린지 myProgress++",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0004",
+    "title": "앱 상태 관리 (AppContext)",
+    "epic": "Epic 2. 데이터레이어",
+    "task": {
+      "description": "flags/profile를 React Context로 노출하고 localStorage와 동기화하는 경량 store를 구현한다. AppProvider와 useApp() 훅을 제공하여 프리미엄 여부·온보딩 여부·AI 고지 확인을 앱 전역에서 반응형으로 사용한다. 마운트 시 storage에서 초기값을 로드하고 setter가 storage 저장과 state 갱신을 함께 수행한다.",
+      "acceptance_criteria": [
+        "AppProvider + useApp() 제공: {flags,profile,setPremium,confirmAiNotice,refreshProfile}",
+        "마운트 시 storage 초기값 로드",
+        "setPremium(true) 시 isPremium=true·premiumSince=now 저장",
+        "페이지 미연결 상태에서도 컴파일/렌더 가능"
+      ]
+    },
+    "covers": [
+      "상태 인프라"
+    ],
+    "files": [
+      "src/lib/appContext.tsx"
+    ],
+    "definition_of_done": [
+      "Context+훅 노출",
+      "storage 동기화",
+      "setPremium/confirmAiNotice 동작",
+      "App에 Provider 래핑 가능"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "AppFlags·UserProfile를 Context state로 미러링, setter가 storage.saveFlags/saveProfile 호출",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0005",
+    "title": "API 클라이언트 + kcal 유틸 + 프로모션 헬퍼",
+    "epic": "Epic 2. 데이터레이어",
+    "task": {
+      "description": "외부 Railway AI 서버 호출 클라이언트(10초 AbortController 타임아웃), MET 기반 kcal 근사 계산, 프로모션 리워드 한도 검증 헬퍼를 구현한다. 비200 응답은 {error} 파싱 후 throw하며 console.error는 사용하지 않는다. grantPromotion은 amount>5000이면 5000으로 제한 후 grantPromotionReward를 호출한다.",
+      "acceptance_criteria": [
+        "postPlan(req), postReport(req) — AbortController 10초 타임아웃, 비200 시 {error} throw",
+        "calcKcal(exerciseId,durationSec,weightKg) — MET×체중×시간, 0~2000 clamp",
+        "grantPromotion(code,amount) — amount>5000→5000 제한 후 grantPromotionReward 호출",
+        "console.error 미사용"
+      ]
+    },
+    "covers": [
+      "F8-AC5"
+    ],
+    "files": [
+      "src/lib/api.ts",
+      "src/lib/kcal.ts",
+      "src/lib/promotion.ts"
+    ],
+    "definition_of_done": [
+      "10초 타임아웃 fetch",
+      "kcal clamp 계산",
+      "프로모션 5000 상한",
+      "에러 throw 위임"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "",
+    "api_contract": "POST {VITE_API_BASE}/api/plan {goal,level,ageGroup}→{plan:WorkoutPlan} | 400/500 {error} · POST /api/report {...}→{report} | grantPromotionReward({promotionCode,amount})",
+    "dependencies": [
+      "@apps-in-toss/web-framework"
+    ],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0006",
+    "title": "온보딩 페이지 /onboarding",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "프로필 입력 폼과 AI 최초 고지 다이얼로그를 구현한다. 닉네임/키/몸무게 TextField(숫자는 inputMode=numeric), 연령대/목표/체력수준 Chip 단일선택, 하단 고정 CTA로 구성한다. 유효성 검증 후 saveProfile와 flags.onboarded=true 저장, 성공 토스트 표시, 홈으로 replace 이동한다. onboarded=true 진입 시 프리필 수정모드로 동작한다.",
+      "acceptance_criteria": [
+        "빈 닉네임→'닉네임을 입력해주세요', 키<100·>250→'키는 100~250cm 사이로 입력해주세요', 저장 차단",
+        "필수(닉네임/키/몸무게/목표) 미충족 시 제출 disabled",
+        "성공 시 saveProfile+onboarded=true, 토스트 '프로필이 저장됐어요', navigate('/',{replace:true})",
+        "aiNoticeConfirmed=false면 최초 1회 AlertDialog, 확인 시 confirmAiNotice()",
+        "숫자 필드 제출 시 blur로 키보드 dismiss, onboarded 진입 시 프리필"
+      ]
+    },
+    "covers": [
+      "F2-AC1",
+      "F2-AC2",
+      "F2-AC3",
+      "F2-AC4",
+      "F2-AC5",
+      "F2-AC6",
+      "F2-AC7"
+    ],
+    "files": [
+      "src/pages/Onboarding.tsx"
+    ],
+    "definition_of_done": [
+      "폼 유효성·에러 문구",
+      "제출 disabled 게이트",
+      "AI 고지 1회",
+      "프리필 수정모드"
+    ],
+    "depends_on": [
+      "0002",
+      "0004"
+    ],
+    "db_schema": "UserProfile→fitcoach.profile, AppFlags.onboarded/aiNoticeConfirmed",
+    "api_contract": "",
+    "dependencies": [
+      "@apps-in-toss/web-framework"
+    ],
+    "ui_requirements": "Pattern: FixedBottomCTA. TDS: Top, Paragraph, TextField, Chip, Spacing, Button, Toast, AlertDialog. Layout: <Top title=프로필 설정/> <Spacing 16> TextField variant=box label=닉네임 hasError help='닉네임을 입력해주세요' <Spacing 12> TextField 키(cm) inputMode=numeric hasError help='키는 100~250cm 사이로 입력해주세요' <Spacing 12> TextField 몸무게(kg) inputMode=numeric <Spacing 24> Paragraph.Text t4 연령대 → flex gap8 Chip 20대/30대/40대(selected 토글). 목표 Chip 다이어트/근육/건강. 체력수준 Chip 입문/중급. 하단 position:fixed bottom padding16 paddingBottom:calc(16px+env(safe-area-inset-bottom)) backgroundColor:var(--tds-color-background) Button variant=fill size=large disabled={!requiredFilled} 저장하기. AlertDialog open={!aiConfirmed} title='AI 활용 안내' description='이 서비스는 생성형 AI를 활용해요. AI 결과는 참고용이에요.' 확인→confirmAi. Toast open={saved} '프로필이 저장됐어요'. Interactions: Chip 선택 generateHapticFeedback tickWeak 단일토글, 저장 CTA success 햅틱→저장→Toast→navigate('/'). States: Loading 없음(즉시 폼), Empty=빈 폼, Error=필드별 hasError+help."
+  },
+  {
+    "id": "0007",
+    "title": "홈 대시보드 /",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "이번 주 요약·주간 추이·최근 세션 리스트·빈 상태를 표시하는 홈을 구현한다. 최근 7일 세션 수와 전체 kcal 합을 계산해 SummaryHero와 Sparkline으로 보여준다. 세션 ListRow 탭 시 리포트로 이동하고, 세션 0개면 빈 상태 CTA를, 20개 초과면 최근 20개+더보기를 렌더한다. 요약과 리스트 사이에 AdSlot 배너 1개를 배치한다.",
+      "acceptance_criteria": [
+        "weekly-summary-hero(CountUp)·weekly-trend(Sparkline) Card 표시",
+        "최근 7일 세션 수+전체 kcal 합 계산",
+        "세션 ListRow(≥44px) 탭→navigate('/report/'+sessionId)",
+        "세션 0개→빈 상태 Asset.ContentIcon+'첫 운동을 시작해보세요'+운동시작 버튼",
+        "20개 초과 시 최근 20개+더보기, 요약과 리스트 사이 AdSlot 1개"
+      ]
+    },
+    "covers": [
+      "F6-AC1",
+      "F6-AC2",
+      "F6-AC3",
+      "F6-AC4",
+      "F6-AC6",
+      "F6-AC7"
+    ],
+    "files": [
+      "src/pages/Home.tsx"
+    ],
+    "definition_of_done": [
+      "주간 요약·추이 카드",
+      "최근 세션 리스트·페이지네이션",
+      "빈 상태 CTA",
+      "AdSlot 비침습 배치"
+    ],
+    "depends_on": [
+      "0003",
+      "0004"
+    ],
+    "db_schema": "getSessions()→최근7일 필터·kcal 합산",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: Dashboard. TDS: Top, Card/ListRow, Paragraph, Button, Spacing, Asset.ContentIcon + 템플릿 SummaryHero/Sparkline/AdSlot. Layout: ScreenScaffold 내 <div data-testid='weekly-summary-hero'> SummaryHero label='이번 주 운동' value=CountUp caption. <Spacing 16> <div data-testid='weekly-trend'> Sparkline 최근7일. <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}/> (요약과 리스트 사이). 최근 세션 ListRow contents=2RowTypeA(운동명/날짜·kcal) onClick→navigate('/report/'+id). 20개 초과 시 slice(0,20)+Button 더보기. Empty(세션0): Asset.ContentIcon+Paragraph '첫 운동을 시작해보세요'+Button 운동 시작. 간격은 Spacing만, HEX 금지 var(--tds-color-*)."
+  },
+  {
+    "id": "0008",
+    "title": "AI 플랜 페이지 /plan",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "프리미엄 전용 주간 플랜 생성·표시 화면을 보상형 광고 게이트와 함께 구현한다. 무료 유저가 플랜 생성 탭 시 BottomSheet 게이트를 띄우고 API를 호출하지 않는다. 프리미엄은 TossRewardAd 시청 완료 후에만 결과를 노출한다. 성공 시 postPlan 응답을 savePlan 저장하고 7일 플랜을 표시하며 상단에 AI 배지를 둔다.",
+      "acceptance_criteria": [
+        "isPremium=false에서 생성 탭→BottomSheet '프리미엄 전용 기능이에요'+/subscribe 버튼, API 미호출",
+        "프리미엄: TossRewardAd로 감싼 결과가 광고 완료 후에만 노출",
+        "성공 시 savePlan 저장+7일 Card/ListRow, 상단 'AI가 생성한 결과입니다' Chip",
+        "대기 중 '플랜을 만들고 있어요' 로딩+버튼 disabled, 500→토스트 '플랜 생성에 실패했어요. 다시 시도해주세요' 기존 플랜 유지",
+        "10초 타임아웃→중단+재시도 버튼, getPlan()===null→'아직 플랜이 없어요' 빈 상태, ListRow 탭→navigate('/workout/'+id,{state:{exercise}})"
+      ]
+    },
+    "covers": [
+      "F3-AC1",
+      "F3-AC2",
+      "F3-AC3",
+      "F3-AC4",
+      "F3-AC5",
+      "F3-AC6",
+      "F3-AC7",
+      "F3-AC8"
+    ],
+    "files": [
+      "src/pages/Plan.tsx"
+    ],
+    "definition_of_done": [
+      "프리미엄 게이트 BottomSheet",
+      "TossRewardAd 결과 게이트",
+      "AI 배지·에러 토스트",
+      "빈/로딩/타임아웃 상태"
+    ],
+    "depends_on": [
+      "0002",
+      "0004",
+      "0005"
+    ],
+    "db_schema": "WorkoutPlan→fitcoach.plan, flags.isPremium 게이팅",
+    "api_contract": "POST /api/plan {goal,level,ageGroup}→{plan:WorkoutPlan} | 400/500 {error}",
+    "dependencies": [],
+    "ui_requirements": "Pattern: StatusPanel(Hero+리스트). TDS: Top, Paragraph, Button, ListRow, Chip, Spacing, BottomSheet, Toast + 템플릿 SummaryHero/TossRewardAd/EmptyState. Layout: <Top title=주간 플랜 right=Button weak '다시 생성'/>. AI 배지: inline-flex padding4/8 borderRadius8 backgroundColor:var(--tds-color-grey50) Paragraph.Text st13 tertiary 'AI가 생성한 결과입니다'. SummaryHero label='이번 주 목표' value=Amount 7일 플랜 caption. Day별 Paragraph.Text t4 'Day N' + ListRow 2RowTypeA(top=운동명 bottom='3세트·12회·휴식60초') right=Chip 시작 onClick→navigate('/workout/'+exerciseId,{state:{exercise}}). 결과 전체를 <TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}>{planResult}</TossRewardAd>. 무료 차단 BottomSheet open={showGate} '프리미엄 전용 기능이에요' Button fill onClick→navigate('/subscribe'). Loading: 로딩 인디케이터+'플랜을 만들고 있어요' 버튼 disabled. Empty: EmptyState title='아직 플랜이 없어요'. Error: Toast+재시도 Button. Haptic: 생성 success, 게이트 tickStrong, ListRow tickWeak."
+  },
+  {
+    "id": "0009",
+    "title": "운동 세션 페이지 /workout/:exerciseId",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "타이머 세션 실행과 카메라/실시간 피드백(프리미엄), 프로모션 트리거를 구현한다. location.state를 RouteState로 캐스팅하고 undefined면 exerciseId로 기본 운동을 조회한다. 완료 시 calcKcal로 WorkoutSession 생성·saveSession 후 리포트로 이동한다. 무료 유저는 타이머 폴백, 프리미엄+카메라는 무릎 각도 코칭과 음성을 제공한다. 최초 세션 완료 시 프로모션을 지급한다.",
+      "acceptance_criteria": [
+        "state undefined면 exerciseId로 기본 운동 조회, 없는 id→'운동을 찾을 수 없어요'+홈 버튼",
+        "완료 시 WorkoutSession(calcKcal) saveSession 후 navigate('/report/'+id,{state:{session}})",
+        "프리미엄+카메라 허용: 무릎>140°→'무릎을 더 굽히세요'(warn)+speechSynthesis, 권한 거부→타이머 폴백 크래시 없음",
+        "무료→카메라 비활성+'실시간 자세 교정은 프리미엄' Chip, 뒤로가기→AlertDialog '운동을 중단할까요? 기록이 저장되지 않아요'",
+        "마지막 3초 카운트다운+진동/음성, 최초 세션 완료 시 grantPromotion(code,3000)"
+      ]
+    },
+    "covers": [
+      "F4-AC1",
+      "F4-AC2",
+      "F4-AC3",
+      "F4-AC4",
+      "F4-AC5",
+      "F4-AC6",
+      "F4-AC7",
+      "F4-AC8",
+      "F8-AC4"
+    ],
+    "files": [
+      "src/pages/Workout.tsx"
+    ],
+    "definition_of_done": [
+      "타이머·완료 세션 저장",
+      "카메라 폴백·프리미엄 게이트",
+      "중단 확인 다이얼로그",
+      "최초완료 프로모션"
+    ],
+    "depends_on": [
+      "0003",
+      "0004",
+      "0005"
+    ],
+    "db_schema": "WorkoutSession→saveSession(sessionStore), calcKcal 사용, grantPromotion 최초1회",
+    "api_contract": "",
+    "dependencies": [
+      "@apps-in-toss/web-framework"
+    ],
+    "ui_requirements": "Pattern: OverlayPulse(카메라/타이머). TDS: Top, Paragraph, Button, Chip, Spacing, AlertDialog. Layout: <Top title=운동명/>. 카메라 프리뷰 영역(프리미엄+권한 시, flex 커스텀 허용) 위에 코칭 Chip warn '무릎을 더 굽히세요'. 중앙 Paragraph 큰 타이포로 남은 세트/횟수/경과(1초 갱신). 하단 Button '시작'→타이머→'완료'. 무료: 카메라 없이 타이머+Chip '실시간 자세 교정은 프리미엄'. 뒤로가기 AlertDialog title='운동을 중단할까요?' description='기록이 저장되지 않아요' 왼쪽 '닫기' 오른쪽 '계속'. 마지막 3초 t1 카운트다운+generateHapticFeedback. speechSynthesis 음성 코칭. 색상 var(--tds-color-*)."
+  },
+  {
+    "id": "0010",
+    "title": "운동 리포트 페이지 /report/:sessionId",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "세션 AI 분석 리포트를 보상형 광고 게이트와 하단 배너와 함께 구현한다. location.state.session이 undefined면 getSessionById로 조회한다. 'AI 분석 보기' 탭 후 TossRewardAd 시청 완료 시에만 결과를 노출하고 postReport 결과를 세션 aiReport에 병합 저장한다. 상단 AI 배지, 대기 스켈레톤, 실패 토스트를 처리하며 aiReport 없으면 기본 요약만 표시한다.",
+      "acceptance_criteria": [
+        "state.session 캐스팅, undefined면 getSessionById(sessionId) 조회",
+        "report-score-card(CountUp)·report-muscle-card(MiniBar)·피드백 ListRow 표시",
+        "'AI 분석 보기'→TossRewardAd 완료 시에만 postReport 호출·aiReport 병합 저장",
+        "상단 'AI가 생성한 결과입니다' Chip, 대기 중 'AI가 자세를 분석하고 있어요' 스켈레톤",
+        "500→토스트 '분석에 실패했어요' 기본 요약 유지 console.error 없음, aiReport 없으면 기본 요약+'AI 분석 보기' 버튼만"
+      ]
+    },
+    "covers": [
+      "F5-AC1",
+      "F5-AC2",
+      "F5-AC3",
+      "F5-AC4",
+      "F5-AC5"
+    ],
+    "files": [
+      "src/pages/Report.tsx"
+    ],
+    "definition_of_done": [
+      "세션 조회·기본 요약",
+      "AI 게이트·병합 저장",
+      "AI 배지·스켈레톤",
+      "실패 토스트 폴백"
+    ],
+    "depends_on": [
+      "0003",
+      "0004",
+      "0005"
+    ],
+    "db_schema": "WorkoutSession.aiReport 병합→sessionStore 저장",
+    "api_contract": "POST /api/report {...}→{report:{scoreAvg,feedback,muscleActivation}} | 500 {error}",
+    "dependencies": [],
+    "ui_requirements": "Pattern: StatusPanel. TDS: Top, Paragraph, Button, ListRow, Chip, Spacing, Toast, Skeleton + 템플릿 SummaryHero/MiniBar/TossRewardAd/AdSlot. Layout: ScreenScaffold 내 상단 Chip 'AI가 생성한 결과입니다'. <div data-testid='report-score-card'> SummaryHero 자세 점수 CountUp. <div data-testid='report-muscle-card'> MiniBar 근육 활성도. 피드백 FormFeedback ListRow 리스트(jointLabel/message, severity good/warn). 'AI 분석 보기' Button→<TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}> 결과. 하단 AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}. Loading: Skeleton+'AI가 자세를 분석하고 있어요'. Error: Toast '분석에 실패했어요' 기본 요약(횟수/시간/칼로리) 유지. 간격 Spacing만, HEX 금지."
+  },
+  {
+    "id": "0011",
+    "title": "챌린지 페이지 /challenge",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "친구 챌린지 생성·목록·진행률·초대코드 공유를 구현한다. 제목/목표횟수/기간을 입력해 Challenge를 생성하고 6자리 초대코드를 발급한다. 목록은 각 챌린지의 myProgress/targetSessions 진행률을 표시하고, 초대코드는 클립보드 복사 또는 공유 UI로 노출한다. 세션 완료로 자동 증가한 진행률이 반영된다.",
+      "acceptance_criteria": [
+        "제목(1~20자)·목표횟수(1~30)·기간 입력→saveChallenges 저장, 6자리 영숫자 inviteCode 발급",
+        "챌린지 ListRow에 myProgress/targetSessions 진행률 표시",
+        "최대 20개 상한, 빈 상태 Asset.ContentIcon+'첫 챌린지를 만들어보세요'+CTA",
+        "초대코드 복사 시 Toast '초대코드를 복사했어요'"
+      ]
+    },
+    "covers": [
+      "F7-AC1",
+      "F7-AC3",
+      "F7-AC4"
+    ],
+    "files": [
+      "src/pages/Challenge.tsx"
+    ],
+    "definition_of_done": [
+      "챌린지 생성·코드 발급",
+      "진행률 표시",
+      "빈 상태·상한",
+      "복사 토스트"
+    ],
+    "depends_on": [
+      "0002",
+      "0004"
+    ],
+    "db_schema": "Challenge[]→fitcoach.challenges (최대20, inviteCode 6자리)",
+    "api_contract": "",
+    "dependencies": [
+      "@apps-in-toss/web-framework"
+    ],
+    "ui_requirements": "Pattern: List+Create. TDS: Top, ListRow, Button, TextField, Chip, Spacing, BottomSheet, Toast, Asset.ContentIcon. Layout: <Top title=챌린지 right=Button '만들기'/>. 생성 BottomSheet: TextField 제목, TextField 목표횟수 inputMode=numeric, 기간 Chip. 목록 ListRow 2RowTypeA(top=제목 bottom='진행 N/M') right=Chip 초대코드, onClick 복사→Toast '초대코드를 복사했어요'. Empty: Asset.ContentIcon+'첫 챌린지를 만들어보세요'+Button. Haptic: 생성 success, Chip tickWeak. Spacing만 사용, var(--tds-color-*)."
+  },
+  {
+    "id": "0012",
+    "title": "구독 페이지 /subscribe",
+    "epic": "Epic 3. 페이지",
+    "task": {
+      "description": "프리미엄 구독(IAP)과 프로모션 리워드 안내 화면을 구현한다. 템플릿 TossPurchase 컴포넌트로 월 12,900원 구독을 처리하고 구매 성공 시 setPremium(true)로 flags를 갱신한다. 프리미엄 혜택(전체 라이브러리/실시간 피드백/AI 플랜)을 리스트로 안내하고 이미 프리미엄이면 구독중 상태를 표시한다.",
+      "acceptance_criteria": [
+        "TossPurchase sku={VITE_TOSS_IAP_SKU} 구매 성공 onPurchased→setPremium(true), premiumSince 저장",
+        "혜택 ListRow 3종(전체 운동/실시간 자세 피드백/AI 개인화 플랜) 표시",
+        "이미 isPremium=true면 '프리미엄 이용 중' 상태·구매 버튼 비노출",
+        "월 12,900원 가격 명시"
+      ]
+    },
+    "covers": [
+      "F8-AC1",
+      "F8-AC2",
+      "F8-AC3"
+    ],
+    "files": [
+      "src/pages/Subscribe.tsx"
+    ],
+    "definition_of_done": [
+      "TossPurchase 연동·setPremium",
+      "혜택 리스트",
+      "프리미엄 상태 분기",
+      "가격 표시"
+    ],
+    "depends_on": [
+      "0004",
+      "0005"
+    ],
+    "db_schema": "AppFlags.isPremium/premiumSince→setPremium via appContext",
+    "api_contract": "IAP.createOneTimePurchaseOrder(sku) via <TossPurchase/>",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA. TDS: Top, Paragraph, ListRow, Chip, Spacing, Button + 템플릿 TossPurchase/AdSlot. Layout: <Top title=프리미엄/>. Paragraph 가격 '월 12,900원'. 혜택 ListRow 2RowTypeA×3(전체 운동 라이브러리/실시간 자세 피드백/AI 개인화 플랜) left=Asset.ContentIcon. 하단 고정 <TossPurchase sku={import.meta.env.VITE_TOSS_IAP_SKU} processProductGrant={...} onPurchased={()=>setPremium(true)}/>. isPremium 시 Chip '프리미엄 이용 중' + 구매 버튼 숨김. paddingBottom:calc(16px+env(safe-area-inset-bottom)), var(--tds-color-*)."
+  },
+  {
+    "id": "0013",
+    "title": "라우터 배선 + FloatingTabBar + 온보딩 가드",
+    "epic": "Epic 4. 통합",
+    "task": {
+      "description": "App.tsx에 react-router-dom Routes를 정의하고 모든 페이지(온보딩/홈/플랜/워크아웃/리포트/챌린지/구독)를 연결한다. AppProvider로 전역 래핑하고, flags.onboarded=false면 /onboarding으로 리다이렉트하는 가드를 적용한다. 메인 4탭(홈/플랜/챌린지/구독)은 템플릿 FloatingTabBar로 구성하며 활성탭 컬러 틴트를 적용한다. main.tsx는 수정하지 않는다.",
+      "acceptance_criteria": [
+        "/, /onboarding, /plan, /workout/:exerciseId, /report/:sessionId, /challenge, /subscribe 라우트 정의",
+        "AppProvider 전역 래핑, onboarded=false 시 /onboarding 리다이렉트 가드",
+        "FloatingTabBar 4탭(홈/플랜/챌린지/구독) 활성 틴트, safe-area paddingBottom",
+        "main.tsx 미수정, 앱 컴파일·모든 라우트 이동 확인"
+      ]
+    },
+    "covers": [
+      "라우팅 통합"
+    ],
+    "files": [
+      "src/App.tsx"
+    ],
+    "definition_of_done": [
+      "7개 라우트 연결",
+      "온보딩 가드",
+      "FloatingTabBar 배선",
+      "main.tsx 미변경"
+    ],
+    "depends_on": [
+      "0006",
+      "0007",
+      "0008",
+      "0009",
+      "0010",
+      "0011",
+      "0012"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [
+      "react-router-dom"
+    ],
+    "ui_requirements": "template FloatingTabBar 사용(2~5탭, 활성탭 컬러 틴트). BrowserRouter/Routes로 7개 경로 매핑. 하단 탭: 홈(/), 플랜(/plan), 챌린지(/challenge), 구독(/subscribe). position:fixed 하단 요소 paddingBottom:calc(Npx+env(safe-area-inset-bottom)). TDS TabBar 존재하지 않음 — 반드시 FloatingTabBar. 색상 var(--tds-color-*)."
+  },
+  {
+    "id": "0014",
+    "title": "최종 폴리시 (AI 배지/광고 위치/정책 점검)",
+    "epic": "Epic 4. 통합",
+    "task": {
+      "description": "App.tsx 진입점 기준으로 AI 고지·배지 노출, 광고 비침습 배치, 정책 준수를 최종 점검·보정한다. AI 결과 화면의 'AI가 생성한 결과입니다' 배지와 최초 고지 다이얼로그 흐름을 확인하고, 외부 URL 이동·설치 유도 문구·프로덕션 console.error 0개, HEX 하드코딩 제거, safe-area/터치타깃 44px를 검증한다. 필요한 공용 배지/가드 유틸만 추가한다.",
+      "acceptance_criteria": [
+        "AI 결과(플랜/리포트) 배지 상시 노출·최초 고지 1회 흐름 확인",
+        "AdSlot/TossRewardAd 비침습 배치 검증",
+        "외부 URL 이동·설치 유도 문구·console.error 0개, HEX 하드코딩 없음",
+        "모든 터치타깃 ≥44px·safe-area 적용, 앱 최종 컴파일"
+      ]
+    },
+    "covers": [
+      "정책·UX 폴리시"
+    ],
+    "files": [
+      "src/App.tsx",
+      "src/components/AiBadge.tsx"
+    ],
+    "definition_of_done": [
+      "AI 배지/고지 흐름",
+      "광고 배치 검증",
+      "정책 위반 0건",
+      "공용 배지 유틸"
+    ],
+    "depends_on": [
+      "0013"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "공용 AiBadge 컴포넌트: inline-flex padding4/8 borderRadius8 backgroundColor:var(--tds-color-grey50) Paragraph.Text st13 tertiary 'AI가 생성한 결과입니다'. 정책 점검: window.open/location.href 금지, 설치 유도 문구 금지, GA/Amplitude 금지, console.error 0개, HEX→var(--tds-color-*), 터치타깃 44px, position:fixed safe-area-inset-bottom. TDS 컴포넌트 여백을 Tailwind/인라인으로 덮지 않기."
+  },
+  {
+    "id": "0015",
+    "title": "라우팅 와이어링 + Provider 연결 + 통합 폴리시",
+    "epic": "4",
+    "task": {
+      "description": "App.tsx에 모든 페이지(Onboarding.tsx, Home.tsx, Plan.tsx, Workout.tsx, Report.tsx, Challenge.tsx, Subscribe.tsx) Route 연결, main.tsx 수정 금지(@AI:ANCHOR), 광고/결제 연동, 최종 UX 폴리시",
+      "acceptance_criteria": [
+        "App.tsx에 모든 페이지 Route가 정의되어 있다",
+        "모든 navigate() 대상에 Route가 존재한다",
+        "main.tsx의 TDSMobileAITProvider/BrowserRouter가 유지되어 있다",
+        "앱이 '/' 경로에서 정상 렌더링된다"
+      ]
+    },
+    "files": [
+      "src/App.tsx"
+    ],
+    "covers": [],
+    "definition_of_done": [
+      "typecheck pass",
+      "all routes accessible",
+      "no console errors"
+    ],
+    "depends_on": [
+      "0014"
+    ]
+  }
+]
