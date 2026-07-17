@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { WorkoutSession, Challenge } from "@/lib/types";
 
 // These functions will be created in src/lib/sessionStore.ts
@@ -12,6 +12,12 @@ import {
 describe("Session Storage — packet-0003 (TDD red phase: FIFO 100 + quota retry + challenge auto-increment)", () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  // Storage.prototype.setItem is spied on directly in the AC-4 quota tests below —
+  // restore it after every test so the mock doesn't leak into unrelated tests.
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // AC-1: getSessions, getSessionById, saveSession(s):boolean 구현
@@ -196,7 +202,7 @@ describe("Session Storage — packet-0003 (TDD red phase: FIFO 100 + quota retry
       // Mock setItem to throw QuotaExceededError on first call, succeed on second
       let callCount = 0;
       const originalSetItem = localStorage.setItem;
-      vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, value) => {
         callCount++;
         if (callCount === 1 && key === "fitcoach.sessions") {
           const error = new Error("QuotaExceededError") as any;
@@ -239,7 +245,7 @@ describe("Session Storage — packet-0003 (TDD red phase: FIFO 100 + quota retry
       localStorage.setItem("fitcoach.sessions", JSON.stringify(existing50));
 
       // Mock setItem to always throw QuotaExceededError
-      vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, value) => {
         if (key === "fitcoach.sessions") {
           const error = new Error("QuotaExceededError") as any;
           error.name = "QuotaExceededError";
@@ -276,7 +282,7 @@ describe("Session Storage — packet-0003 (TDD red phase: FIFO 100 + quota retry
 
       let callCount = 0;
       const originalSetItem = localStorage.setItem;
-      vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, value) => {
         callCount++;
         if (callCount === 1 && key === "fitcoach.sessions") {
           const error = new Error("QuotaExceededError") as any;
@@ -304,6 +310,7 @@ describe("Session Storage — packet-0003 (TDD red phase: FIFO 100 + quota retry
       // Oldest 10 (sess_0 to sess_9) should be gone
       stored.forEach((s: WorkoutSession) => {
         const id = parseInt(s.sessionId.split("_")[1], 10);
+        if (Number.isNaN(id)) return; // the newly saved session isn't part of the sess_N pool
         expect(id).toBeGreaterThanOrEqual(10);
       });
     });
