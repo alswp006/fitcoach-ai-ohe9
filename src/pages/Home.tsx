@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Top, Paragraph, Spacing, ListRow, Button, Asset } from '@toss/tds-mobile';
 import { ScreenScaffold } from '@/components/ScreenScaffold';
 import { SummaryHero } from '@/components/SummaryHero';
@@ -10,7 +10,6 @@ import { Sparkline } from '@/components/Sparkline';
 import { EmptyState } from '@/components/StateView';
 import { AdSlot } from '@/components/AdSlot';
 import { FloatingTabBar } from '@/components/FloatingTabBar';
-import { useApp } from '@/lib/appContext';
 import { getSessions } from '@/lib/sessionStore';
 
 const AD_GROUP_ID = import.meta.env.VITE_TOSS_AD_GROUP_ID ?? 'home-banner';
@@ -38,12 +37,7 @@ function last7DayCounts(sessions: { startedAt: number }[]): number[] {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { flags } = useApp();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  if (!flags.onboarded) {
-    return <Navigate to="/onboarding" replace />;
-  }
 
   const sessions = getSessions();
   const now = Date.now();
