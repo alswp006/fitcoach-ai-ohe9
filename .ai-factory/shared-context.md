@@ -125,6 +125,8 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
   App.tsx
   components/
     AdSlot.tsx
+    AiBadge.tsx
+    AiNoticeGate.tsx
     Amount.tsx
     BottomCTA.tsx
     Card.tsx
@@ -132,6 +134,7 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
     FloatingTabBar.tsx
     MiniBar.tsx
     PageShell.tsx
+    PremiumGate.tsx
     ScreenScaffold.tsx
     Sparkline.tsx
     StateView.tsx
@@ -141,15 +144,22 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
   hooks/
   lib/
     api.ts
+    appContext.tsx
     kcal.ts
     promotion.ts
+    sessionStore.ts
     storage.ts
     types.ts
     utils.ts
   main.tsx
   pages/
+    Challenge.tsx
     Home.tsx
+    Onboarding.tsx
+    Plan.tsx
     __TdsGallery.tsx
+  state/
+  storage/
   styles/
     globals.css
     reward-ad.css
@@ -160,12 +170,15 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
 - api.ts: export async function postPlan(req: PlanApiRequest): Promise<PlanApiResponse>; export async function postReport(req: ReportApiRequest): Promise<ReportApiResponse>
 - kcal.ts: export function calcKcal(exerciseId: string, durationSec: number, weightKg: number): number
 - promotion.ts: export async function grantPromotion(code: string, amount: number): Promise<void>
+- sessionStore.ts: export function getSessions(): WorkoutSession[]; export function getSessionById(sessionId: string): WorkoutSession | null; export function saveSession(session: WorkoutSession): boolean
 - storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void; export function safeParse<T>(raw: string, fallback: T): T; export function safeParse<T>(raw: string, fallback: null): T | null; export function safeParse<T>(raw: string, fallback: T | null): T | null; export function getProfile(): UserProfile | null; export function saveProfile(profile: UserProfile): void
 - types.ts: export interface UserProfile; export interface PlanExercise; export interface WorkoutPlan; export interface FormFeedback; export interface WorkoutSession; export interface Challenge; export interface AppFlags; export interface PlanApiRequest
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
 ### Components (src/components/)
 - AdSlot.tsx: AdSlot
+- AiBadge.tsx: AiBadge
+- AiNoticeGate.tsx: AiNoticeGate
 - Amount.tsx: Amount
 - BottomCTA.tsx: SubmitFooter, ButtonStack
 - Card.tsx: Card
@@ -173,6 +186,7 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
 - FloatingTabBar.tsx: FloatingTabBar
 - MiniBar.tsx: MiniBar
 - PageShell.tsx: PageShell
+- PremiumGate.tsx: PremiumGate
 - ScreenScaffold.tsx: ScreenScaffold
 - Sparkline.tsx: Sparkline
 - StateView.tsx: EmptyState, LoadingState
@@ -182,13 +196,18 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
 
 ### Module Dependencies (import graph)
   lib/api.ts → imports: lib/types
+  lib/sessionStore.ts → imports: lib/types, lib/storage
   lib/storage.ts → imports: lib/types
+  pages/Challenge.tsx → imports: components/ScreenScaffold, components/Card, components/StateView, lib/storage, lib/types
+  pages/Plan.tsx → imports: components/ScreenScaffold, components/BottomCTA, components/Card, components/SummaryHero, components/Amount, components/StateView, components/TossRewardAd, components/AiBadge, lib/appContext, lib/storage, lib/api, lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: 전체 엔티티 타입 + RouteState 정의 (files: src/lib/types.ts)
-- 0005: API 클라이언트 + kcal 유틸 + 프로모션 헬퍼 (files: src/lib/api.ts, src/lib/kcal.ts, src/lib/promotion.ts)
 - 0002: 기본 storage 헬퍼 (profile/plan/flags/challenges) (files: src/lib/storage.ts)
 - 0003: 세션 storage (FIFO 100 + quota 재시도 + 챌린지 자동증가) (files: src/lib/sessionStore.ts)
 - 0004: 앱 상태 관리 (AppContext) (files: src/lib/appContext.tsx)
+- 0005: API 클라이언트 + kcal 유틸 + 프로모션 헬퍼 (files: src/lib/api.ts, src/lib/kcal.ts, src/lib/promotion.ts)
 - 0006: 온보딩 페이지 /onboarding (files: src/pages/Onboarding.tsx)
+- heal-1-02: 패킷 0008 /plan 페이지를 공용 계약에 맞춰 수복 (files: src/pages/plan/PlanPage.tsx, src/api/client.ts, src/storage/plan.ts, src/components/AiBadge.tsx)
+- heal-1-03: 패킷 0011 /challenge 페이지를 공용 계약에 맞춰 수복 (files: src/pages/challenge/ChallengePage.tsx, src/storage/challenges.ts, src/state/AppContext.tsx)

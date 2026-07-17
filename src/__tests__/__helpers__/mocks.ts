@@ -300,8 +300,16 @@ export function mockAppsInToss() {
 // ── Toss Reward Ad Component ──
 // TossRewardAd is a project-local component that wraps content behind ad viewing.
 // In tests, render the children directly (ad always "watched").
+// NOTE: uses vi.doMock (not vi.mock) on purpose — vi.mock is hoisted to the top
+// of THIS file (mocks.ts) regardless of being called from inside a function, so
+// it would register unconditionally the instant anything is imported from this
+// module, permanently overriding any test-local vi.mock("@/components/TossRewardAd", ...)
+// override (e.g. packet-0008.test.ts's "hidden until watched" stand-in). vi.doMock
+// registers only when this function actually runs, and only for imports resolved
+// after that point — safe as long as callers call mockAll()/mockTossRewardAd()
+// before importing the page under test (the documented pattern).
 export function mockTossRewardAd() {
-  vi.mock("@/components/TossRewardAd", () => ({
+  vi.doMock("@/components/TossRewardAd", () => ({
     TossRewardAd: ({ children, onReward }: any) => {
       // Auto-trigger onReward in tests to unlock content
       if (onReward) setTimeout(onReward, 0);

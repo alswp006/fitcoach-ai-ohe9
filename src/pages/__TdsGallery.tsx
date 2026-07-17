@@ -102,7 +102,7 @@ export default function TdsGallery() {
 
       <Section title="Asset (CDN icons & images)">
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <Asset.ContentIcon name="iconStarRegular" alt="별" style={{ width: 32, height: 32 }} />
+          <Asset.ContentIcon name="icon-star-mono" alt="별" style={{ width: 32, height: 32 }} />
           <Paragraph.Text typography="t6">Asset.ContentIcon (32px)</Paragraph.Text>
         </div>
       </Section>

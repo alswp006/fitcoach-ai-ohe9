@@ -9,14 +9,13 @@ import { SummaryHero } from '@/components/SummaryHero';
 import { Amount } from '@/components/Amount';
 import { EmptyState, LoadingState } from '@/components/StateView';
 import { TossRewardAd } from '@/components/TossRewardAd';
+import { AiBadge } from '@/components/AiBadge';
 import { useApp } from '@/lib/appContext';
 import { getPlan, savePlan } from '@/lib/storage';
 import { postPlan } from '@/lib/api';
 import type { PlanExercise, WorkoutPlan } from '@/lib/types';
 
 const AD_SLOT_ID = import.meta.env.VITE_TOSS_AD_SLOT_ID ?? 'plan-unlock';
-// eslint-disable-next-line no-console
-console.log('DEBUG TossRewardAd fn source:', TossRewardAd.toString().slice(0, 120));
 
 type RequestState = 'idle' | 'loading' | 'error' | 'timeout';
 
@@ -26,23 +25,6 @@ function fireHaptic(type: 'success' | 'tickWeak' | 'error') {
   } catch {
     /* WebView 밖(브라우저/검수자 PC/jsdom)에서는 throw — 무시 */
   }
-}
-
-/** AI 고지 배지 — TDS에 전용 컴포넌트가 없어 커스텀 컨테이너로 구현(Paragraph.Text만 TDS). */
-function AiBadge() {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '4px 8px',
-        borderRadius: 8,
-        backgroundColor: 'var(--tds-color-grey50)',
-      }}
-    >
-      <Paragraph.Text typography="st13">AI가 생성한 결과입니다</Paragraph.Text>
-    </span>
-  );
 }
 
 export default function Plan() {

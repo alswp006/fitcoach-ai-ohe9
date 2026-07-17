@@ -1,9 +1,10 @@
 import { useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Top, TextField, Chip, Spacing, Paragraph, AlertDialog, Toast } from '@toss/tds-mobile';
+import { Top, TextField, Chip, Spacing, Paragraph, Toast } from '@toss/tds-mobile';
 import { generateHapticFeedback } from '@apps-in-toss/web-framework';
 import { ScreenScaffold } from '../components/ScreenScaffold';
 import { SubmitFooter } from '../components/BottomCTA';
+import { AiNoticeGate } from '../components/AiNoticeGate';
 import { useApp } from '../lib/appContext';
 import { saveProfile, saveFlags } from '../lib/storage';
 import type { UserProfile } from '../lib/types';
@@ -66,7 +67,7 @@ function validateWeight(value: string): string | null {
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { flags, profile, confirmAiNotice } = useApp();
+  const { flags, profile } = useApp();
 
   const [nickname, setNickname] = useState(profile?.nickname ?? '');
   const [height, setHeight] = useState(profile ? String(profile.heightCm) : '');
@@ -211,15 +212,7 @@ export default function Onboarding() {
 
       <Spacing size={80} />
 
-      <AlertDialog
-        open={!flags.aiNoticeConfirmed}
-        title="AI 활용 안내"
-        description="이 서비스는 생성형 AI를 활용해요. AI 결과는 참고용이에요."
-        alertButton={
-          <AlertDialog.AlertButton onClick={confirmAiNotice}>확인</AlertDialog.AlertButton>
-        }
-        onClose={confirmAiNotice}
-      />
+      <AiNoticeGate />
 
       <Toast open={saved} position="top" text="프로필이 저장됐어요" />
     </ScreenScaffold>

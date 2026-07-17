@@ -129,7 +129,7 @@ export default function ChallengePage() {
 
       {challenges.length === 0 ? (
         <EmptyState
-          icon={<Asset.ContentIcon name="iconStarRegular" alt="챌린지 없음" />}
+          icon={<Asset.ContentIcon name="icon-star-mono" alt="챌린지 없음" />}
           title="첫 챌린지를 만들어보세요"
           description="친구와 함께 목표를 달성해보세요"
           testId="challenge-empty"
