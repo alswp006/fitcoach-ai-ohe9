@@ -140,6 +140,9 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
     TossRewardAd.tsx
   hooks/
   lib/
+    api.ts
+    kcal.ts
+    promotion.ts
     storage.ts
     types.ts
     utils.ts
@@ -154,7 +157,10 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
   vite-env.d.ts
 
 ### Exports (src/lib/)
-- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
+- api.ts: export async function postPlan(req: PlanApiRequest): Promise<PlanApiResponse>; export async function postReport(req: ReportApiRequest): Promise<ReportApiResponse>
+- kcal.ts: export function calcKcal(exerciseId: string, durationSec: number, weightKg: number): number
+- promotion.ts: export async function grantPromotion(code: string, amount: number): Promise<void>
+- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void; export function safeParse<T>(raw: string, fallback: T): T; export function safeParse<T>(raw: string, fallback: null): T | null; export function safeParse<T>(raw: string, fallback: T | null): T | null; export function getProfile(): UserProfile | null; export function saveProfile(profile: UserProfile): void
 - types.ts: export interface UserProfile; export interface PlanExercise; export interface WorkoutPlan; export interface FormFeedback; export interface WorkoutSession; export interface Challenge; export interface AppFlags; export interface PlanApiRequest
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
@@ -173,7 +179,12 @@ export type RouteState = WorkoutRouteState | ReportRouteState | undefined;
 - SummaryHero.tsx: SummaryHero
 - TossPurchase.tsx: TossPurchase
 - TossRewardAd.tsx: TossRewardAd
+
+### Module Dependencies (import graph)
+  lib/api.ts → imports: lib/types
+  lib/storage.ts → imports: lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: 전체 엔티티 타입 + RouteState 정의 (files: src/lib/types.ts)
+- 0005: API 클라이언트 + kcal 유틸 + 프로모션 헬퍼 (files: src/lib/api.ts, src/lib/kcal.ts, src/lib/promotion.ts)
